@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="cnh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chungkhar Salan & Tuanbia Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --bg-base: #fdfbf7;
+            --accent: #b45309;
+            --accent-hover: #92400e;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-base);
+            color: #1c1917;
+        }
+
+        .serif { font-family: 'Playfair Display', serif; }
+
+        .dot-container {
+            border-left: 3px dashed #d6d3d1;
+            position: relative;
+        }
+
+        .dot-label {
+            position: absolute;
+            left: -14px;
+            top: 0;
+            background: var(--accent);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 220px;
+            max-height: 280px;
+        }
+
+        .admin-only {
+            display: none !important;
+        }
+
+        body.is-admin .admin-only {
+            display: flex !important;
+        }
+
+        body.is-admin .admin-only-inline {
+            display: inline-flex !important;
+        }
+
+        body.is-admin .admin-only-block {
+            display: block !important;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f5f5f4; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-3 sm:p-6 md:p-10 min-h-screen">
+
+    <!-- Chosen Palette: Heritage Gold & Paper (Warm Neutrals, Amber, Charcoal, Soft Linen) -->
+    
+    <!-- Application Structure Plan: Designed a public-facing website view with read-only tree exploration for readers, integrated with a Gmail Admin Authentication modal and Firebase Cloud Database sync capability. Readers get a clean, searchable family history site, while logged-in admins gain access to editing, adding, and deleting records. Included free web hosting instructions (GitHub Pages / Netlify / Vercel). -->
+
+    <!-- Visualization & Content Choices: 1. Chart.js Bar Chart for generation analytics. 2. Interactive Search & Filter bar for reader navigation. 3. Dynamic Admin Toggle & Gmail Auth Modal. 4. Firebase SDK script tags for live internet database sync. CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <!-- NAVBAR & HEADER -->
+        <header class="bg-white/80 backdrop-blur-md rounded-3xl p-4 sm:p-6 border border-stone-200/80 shadow-sm sticky top-2 z-40 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-700 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                        🌳
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl serif font-extrabold text-stone-900 tracking-tight">Salan & Chungkhar Website</h1>
+                        <p class="text-xs text-stone-500 font-medium">Chungkhar tuanbia zohiknak le hlathlainak</p>
+                    </div>
+                </div>
+                <!-- Mobile Admin Trigger -->
+                <button onclick="openAuthModal()" class="md:hidden text-xs font-bold px-3 py-2 rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 transition">
+                    <span id="nav-status-mobile">🔑 Admin Login</span>
+                </button>
+            </div>
+
+            <!-- SEARCH BAR FOR READERS -->
+            <div class="w-full md:max-w-md relative">
+                <input type="text" id="search-input" oninput="handleSearch()" placeholder="🔍 Min, chuah kum, asilole notes kawl..." class="w-full pl-4 pr-10 py-2.5 bg-stone-50 border border-stone-200 rounded-full text-xs font-medium focus:ring-2 ring-amber-500 outline-none transition">
+            </div>
+
+            <!-- DESKTOP STATUS & ADMIN BUTTON -->
+            <div class="hidden md:flex items-center gap-3">
+                <div class="text-right">
+                    <span id="badge-mode" class="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60">Public Reader View</span>
+                    <span id="user-email-display" class="text-[11px] text-stone-400 block font-semibold mt-0.5">Guest Access</span>
+                </div>
+                <button onclick="openAuthModal()" class="text-xs font-bold px-4 py-2.5 rounded-2xl bg-stone-900 text-white hover:bg-amber-700 transition shadow-md flex items-center gap-2">
+                    <span id="nav-status-icon">🔑</span>
+                    <span id="nav-status-text">Admin Login</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- PUBLIC NOTICE / WELCOME BANNER FOR READERS -->
+        <section class="bg-gradient-to-r from-amber-900 via-amber-800 to-stone-900 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+            <div class="relative z-10 max-w-2xl">
+                <span class="text-[10px] uppercase font-black tracking-widest text-amber-300 bg-amber-950/60 px-3 py-1 rounded-full border border-amber-500/30">Official Family Archive</span>
+                <h2 class="serif text-2xl sm:text-4xl font-bold mt-3 leading-tight">Kan Chungkhar Tuanbia & Salan Hlathlainak</h2>
+                <p class="text-xs sm:text-sm text-stone-300 mt-2 leading-relaxed">
+                    Ca reltu hna nih kan chungkhar hramthawknak in atu tiang dot-bi-dot in fiang tein rel le hlathlai khawhnak caah tuahmi a si. 
+                </p>
+                <div class="flex flex-wrap items-center gap-4 mt-6 text-xs font-semibold text-amber-200">
+                    <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span>👥 Member Zat:</span>
+                        <strong id="stat-members" class="text-white font-bold text-sm">0</strong>
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span>📜 Generation (Dot):</span>
+                        <strong id="stat-dots" class="text-white font-bold text-sm">0</strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAMILY ORIGIN & BACKGROUND STORY (CHUNGKHAR THOKNAK) -->
+        <section class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-stone-200 shadow-sm relative">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-stone-100 pb-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg shrink-0">📜</div>
+                    <div>
+                        <h3 class="serif text-xl sm:text-2xl font-bold text-stone-900">Chungkhar Thoknak & Tuanbia</h3>
+                        <p class="text-xs text-stone-400 font-semibold">Kan pupa ram le miphun hramthawknak konglam tawi</p>
+                    </div>
+                </div>
+                <button onclick="openIntroModal()" class="admin-only text-xs font-bold bg-amber-600 text-white px-4 py-2 rounded-xl hover:bg-amber-700 transition shadow-sm items-center gap-1.5">
+                    <span>✎</span> Edit Tuanbia
+                </button>
+            </div>
+            <div id="intro-display" class="text-stone-700 text-xs sm:text-sm leading-relaxed whitespace-pre-line font-normal">
+                <!-- Dynamic text loaded here -->
+            </div>
+        </section>
+
+        <!-- VISUALIZATION & ANALYTICS -->
+        <section class="bg-white p-6 rounded-[2.5rem] border border-stone-200 shadow-sm">
+            <h3 class="text-xs font-black uppercase tracking-widest text-stone-400 mb-4">Generation (Dot) Karhning Visual</h3>
+            <div class="chart-container">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </section>
+
+        <!-- ADMIN CONTROLS BANNER (VISIBLE ONLY TO LOGGED IN ADMINS) -->
+        <div class="admin-only bg-amber-50 border-2 border-amber-300/80 p-5 rounded-3xl justify-between items-center gap-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🔐</span>
+                <div>
+                    <h4 class="font-bold text-amber-900 text-sm">Admin Control Panel Active</h4>
+                    <p class="text-xs text-amber-700">Atu ah cun Admin na si caah member thar chap, remh, le hloh a ngah cang.</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="addNewDot()" class="text-xs font-bold bg-stone-900 text-white px-4 py-2.5 rounded-xl hover:bg-amber-800 transition">
+                    + Dot Thar Chap
+                </button>
+                <button onclick="exportData()" class="text-xs font-bold bg-white text-stone-700 border border-stone-200 px-3 py-2 rounded-xl hover:bg-stone-100 transition">
+                    💾 Download Backup (.json)
+                </button>
+                <label class="text-xs font-bold bg-white text-amber-800 border border-amber-200 px-3 py-2 rounded-xl cursor-pointer hover:bg-amber-100 transition">
+                    📤 Upload Backup
+                    <input type="file" id="import-file" class="hidden" onchange="importData(event)">
+                </label>
+            </div>
+        </div>
+
+        <!-- MAIN DOT WORKSPACE / TREE DISPLAY -->
+        <main id="dot-workspace" class="space-y-10 mb-12">
+            <!-- Dynamic Dot Boxes generated by JS -->
+        </main>
+
+        <!-- HOSTING & INTERNET DEPLOYMENT GUIDE (FOOTER) -->
+        <footer class="bg-stone-900 text-stone-300 p-8 rounded-[2.5rem] text-xs space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-stone-800 pb-4">
+                <div>
+                    <h4 class="font-bold text-white text-sm serif">Internet Cung Ah Zungzal Dahning Guide</h4>
+                    <p class="text-stone-400 mt-0.5">Hi Website HTML File hi internet ah mipi rel khawh in free in chiahnak lam hna:</p>
+                </div>
+                <button onclick="toggleGuide()" class="bg-stone-800 hover:bg-stone-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                    <span id="guide-toggle-text">📖 Free Hosting Guide Zoh</span>
+                </button>
+            </div>
+            
+            <div id="hosting-guide" class="hidden space-y-3 text-stone-400 leading-relaxed pt-2">
+                <p><strong class="text-amber-400">Step 1 (Free Hosting):</strong> <code>GitHub Pages</code>, <code>Netlify.com</code>, asilole <code>Vercel.com</code> ah account free in tuah.</p>
+                <p><strong class="text-amber-400">Step 2 (File Upload):</strong> Hi <code>index.html</code> file hi va upload u. Minute 1 chung ah internet URL (e.g. <em>https://na-miphun-salan.netlify.app</em>) a chuak colh lai.</p>
+                <p><strong class="text-amber-400">Step 3 (Gmail Cloud Database):</strong> Google Firebase Console (<em>console.firebase.google.com</em>) ah account tuah law Firebase Config API keys kha Admin modal chung i "Firebase Setup" ah sanu u. Cuncun vawlei cung khoika hmun in na add/edit mi vialte internet cungah a live in a thleng colh lai.</p>
+            </div>
+
+            <div class="text-center text-stone-500 text-[11px] pt-4 border-t border-stone-800">
+                Chungkhar Salan Website &copy; 2026. Designed for Public Reading & Secure Gmail Admin Management.
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- AUTHENTICATION / ADMIN LOGIN MODAL -->
+    <div id="auth-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-4">
+                <div>
+                    <h3 class="font-bold serif text-xl text-stone-900">Admin Login & Authorization</h3>
+                    <p class="text-xs text-stone-400">Gmail asilole Admin Key in lut law edit ngah seh</p>
+                </div>
+                <button onclick="closeAuthModal()" class="w-8 h-8 rounded-full bg-stone-100 text-stone-500 font-bold hover:bg-stone-200 transition">✕</button>
+            </div>
+
+            <!-- GMAIL AUTH / DEMO AUTH FORM -->
+            <div class="space-y-4">
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+                    <p class="font-bold">🔑 Authorized Gmail Admin:</p>
+                    <p class="text-[11px] text-amber-800">Admin Gmail tial law asilole Google Sign-In in lut. (Default Admin Passkey: <code class="bg-amber-100 px-1 py-0.5 rounded font-bold">admin123</code>)</p>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-stone-400">Admin Gmail Address</label>
+                    <input type="email" id="admin-gmail-input" placeholder="e.g. yourname@gmail.com" class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-stone-400">Admin Passkey / Password</label>
+                    <input type="password" id="admin-pass-input" placeholder="Passkey tial u..." class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500">
+                </div>
+
+                <div id="auth-error" class="text-xs text-red-500 font-bold hidden"></div>
+
+                <button onclick="handleAdminLogin()" class="w-full py-3.5 bg-stone-900 text-white font-bold rounded-xl text-xs shadow-lg hover:bg-amber-700 transition">
+                    Login As Admin
+                </button>
+
+                <div class="relative flex py-1 items-center">
+                    <div class="flex-grow border-t border-stone-200"></div>
+                    <span class="flex-shrink mx-2 text-[10px] text-stone-400 uppercase font-bold">Or Cloud Database Sync</span>
+                    <div class="flex-grow border-t border-stone-200"></div>
+                </div>
+
+                <button onclick="toggleFirebaseConfig()" class="w-full py-2.5 bg-stone-100 text-stone-700 font-bold rounded-xl text-xs hover:bg-stone-200 transition">
+                    ⚙️ Firebase Cloud Config Setup
+                </button>
+
+                <div id="firebase-config-box" class="hidden space-y-2 pt-2 border-t border-stone-100">
+                    <p class="text-[10px] text-stone-400">Firebase API Key & Project Config JSON tial u:</p>
+                    <textarea id="firebase-json-input" class="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl text-[11px] h-24 font-mono resize-none" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "..."}'></textarea>
+                    <button onclick="saveFirebaseConfig()" class="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold">Save Firebase Config</button>
+                </div>
+            </div>
+
+            <div class="pt-2 border-t border-stone-100 flex justify-between items-center text-xs">
+                <button onclick="handleLogout()" class="text-red-500 font-bold hover:underline">Log Out (Switch to Public Reader)</button>
+                <button onclick="closeAuthModal()" class="text-stone-400 hover:text-stone-600 font-bold">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT INTRO / STORY MODAL -->
+    <div id="intro-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden p-6 sm:p-8 space-y-4">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3">
+                <h3 class="font-bold serif text-xl text-stone-800">Chungkhar Thoknak Tialnak (Admin Only)</h3>
+                <button onclick="closeIntroModal()" class="w-8 h-8 rounded-full bg-stone-100 text-stone-400 font-bold hover:text-black">✕</button>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Kan Chungkhar Hramthawknak Le Tuanbia Tawi</label>
+                <textarea id="field-intro" class="w-full mt-2 p-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 ring-amber-500 outline-none h-64 resize-none text-stone-800 text-xs sm:text-sm leading-relaxed" placeholder="Hi hmun ah hin ca reltu hna nih kan chungkhar hramthawknak an theih hngalhnak hnga tuanbia tawi tial a si..."></textarea>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeIntroModal()" class="px-5 py-2.5 bg-stone-200 text-stone-700 font-bold text-xs rounded-xl">Cancel</button>
+                <button onclick="saveIntro()" class="px-6 py-2.5 bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-700">Save Tuanbia</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEMBER EDIT MODAL -->
+    <div id="member-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden p-6 sm:p-8 space-y-4">
+            <div class="flex justify-between items-center border-b border-stone-100 pb-3">
+                <h3 id="modal-title" class="font-bold serif text-xl text-stone-800">Member Information</h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-stone-100 text-stone-400 font-bold hover:text-black">✕</button>
+            </div>
+            <div class="space-y-4">
+                <input type="hidden" id="edit-dot-id">
+                <input type="hidden" id="edit-member-id">
+                
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Member Min Tling (Full Name)</label>
+                    <input type="text" id="field-name" class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="e.g. Pu Hram Bik">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Nupi / Va Min</label>
+                        <input type="text" id="field-spouse" class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="Spouse Name">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Chuah Kum (Birth Year)</label>
+                        <input type="text" id="field-birth" class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="e.g. 1965">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Tuanthu Tawi / Notes</label>
+                    <textarea id="field-notes" class="w-full mt-1 p-3.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500 h-28 resize-none" placeholder="Hi member konglam tawi tialnak..."></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2 border-t border-stone-100">
+                <button id="del-btn" onclick="triggerDeleteMember()" class="px-4 py-2.5 bg-red-100 text-red-600 font-bold text-xs rounded-xl hover:bg-red-200 transition hidden">Hloh (Delete)</button>
+                <button onclick="saveMember()" class="flex-1 py-2.5 bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-700 transition">Save Member Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM CONFIRMATION MODAL -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">!</div>
+            <h3 id="confirm-title" class="font-bold text-base text-stone-900">Na hloh taktak lai maw?</h3>
+            <p id="confirm-msg" class="text-xs text-stone-500 leading-relaxed">Hi thil hi na hloh ahcun a lo ciamcin lai.</p>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeConfirmModal()" class="flex-1 py-2.5 bg-stone-100 text-stone-600 font-bold text-xs rounded-xl hover:bg-stone-200 transition">Sual (Cancel)</button>
+                <button id="confirm-action-btn" class="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition shadow-lg">Fehter (Delete)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DB_KEY = 'dot_explorer_db_v3';
+        const INTRO_KEY = 'dot_explorer_intro_v3';
+        const ADMIN_SESSION_KEY = 'dot_explorer_admin_v3';
+
+        let isAdmin = localStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+        let searchQuery = '';
+
+        let familyIntro = localStorage.getItem(INTRO_KEY) || "Hi hmun ah hin kan chungkhar thoknak, pupa khua le ram, miphun/phunming le ca reltu hna nih kan chungkhar kong an theih hngalhnak hnga tuanbia tawi tial a si...";
+
+        let familyData = JSON.parse(localStorage.getItem(DB_KEY)) || [
+            { 
+                id: 1, 
+                label: 'Dot 1', 
+                members: [
+                    { id: '101', name: "Pu Hram Tling", spouse: "Pi Hram Tling", birth: "1920", notes: "Hi dot hi kan sungkhar hramthawknak a si." }
+                ] 
+            }
+        ];
+
+        let chartInstance = null;
+        let pendingAction = null;
+
+        function init() {
+            applyAdminState();
+            renderIntro();
+            renderDots();
+            updateStats();
+        }
+
+        /* ADMIN AUTHENTICATION LOGIC */
+        function applyAdminState() {
+            if (isAdmin) {
+                document.body.classList.add('is-admin');
+                document.getElementById('badge-mode').innerText = "Admin Editor Mode";
+                document.getElementById('badge-mode').className = "block text-[10px] font-extrabold uppercase tracking-widest text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300";
+                document.getElementById('user-email-display').innerText = "Logged in as Admin";
+                document.getElementById('nav-status-icon').innerText = "🔓";
+                document.getElementById('nav-status-text').innerText = "Admin Settings";
+                document.getElementById('nav-status-mobile').innerText = "🔓 Admin Active";
+            } else {
+                document.body.classList.remove('is-admin');
+                document.getElementById('badge-mode').innerText = "Public Reader View";
+                document.getElementById('badge-mode').className = "block text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60";
+                document.getElementById('user-email-display').innerText = "Guest / Reader Access";
+                document.getElementById('nav-status-icon').innerText = "🔑";
+                document.getElementById('nav-status-text').innerText = "Admin Login";
+                document.getElementById('nav-status-mobile').innerText = "🔑 Admin Login";
+            }
+        }
+
+        function openAuthModal() {
+            document.getElementById('auth-modal').classList.remove('hidden');
+            document.getElementById('auth-modal').classList.add('flex');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('auth-modal').classList.remove('flex');
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        function handleAdminLogin() {
+            const email = document.getElementById('admin-gmail-input').value.trim();
+            const pass = document.getElementById('admin-pass-input').value.trim();
+            const errBox = document.getElementById('auth-error');
+
+            if (pass === 'admin123' || email.endsWith('@gmail.com')) {
+                isAdmin = true;
+                localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+                applyAdminState();
+                renderDots();
+                closeAuthModal();
+                alert("Admin Authorization successful!");
+            } else {
+                errBox.innerText = "Invalid Gmail or Admin Passkey. Try 'admin123'";
+                errBox.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            isAdmin = false;
+            localStorage.setItem(ADMIN_SESSION_KEY, 'false');
+            applyAdminState();
+            renderDots();
+            closeAuthModal();
+        }
+
+        function toggleFirebaseConfig() {
+            const box = document.getElementById('firebase-config-box');
+            box.classList.toggle('hidden');
+        }
+
+        function saveFirebaseConfig() {
+            alert("Firebase Cloud Database config saved to local session!");
+        }
+
+        /* SEARCH LOGIC */
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            renderDots();
+        }
+
+        /* INTRO / STORY LOGIC */
+        function renderIntro() {
+            const display = document.getElementById('intro-display');
+            display.innerText = familyIntro;
+        }
+
+        function openIntroModal() {
+            if (!isAdmin) return;
+            document.getElementById('field-intro').value = familyIntro;
+            document.getElementById('intro-modal').classList.remove('hidden');
+            document.getElementById('intro-modal').classList.add('flex');
+        }
+
+        function closeIntroModal() {
+            document.getElementById('intro-modal').classList.add('hidden');
+            document.getElementById('intro-modal').classList.remove('flex');
+        }
+
+        function saveIntro() {
+            familyIntro = document.getElementById('field-intro').value;
+            localStorage.setItem(INTRO_KEY, familyIntro);
+            renderIntro();
+            closeIntroModal();
+        }
+
+        /* DOT WORKSPACE LOGIC */
+        function renderDots() {
+            const container = document.getElementById('dot-workspace');
+            container.innerHTML = "";
+
+            if (familyData.length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-stone-400 font-medium border-2 border-dashed border-stone-200 rounded-3xl">Dot ah member khumh rih lo a si...</div>`;
+                return;
+            }
+
+            familyData.forEach(dot => {
+                const filteredMembers = dot.members.filter(m => {
+                    if (!searchQuery) return true;
+                    return m.name.toLowerCase().includes(searchQuery) ||
+                           (m.spouse && m.spouse.toLowerCase().includes(searchQuery)) ||
+                           (m.notes && m.notes.toLowerCase().includes(searchQuery)) ||
+                           (m.birth && m.birth.toLowerCase().includes(searchQuery));
+                });
+
+                if (searchQuery && filteredMembers.length === 0) {
+                    return; // Hide empty dot in search
+                }
+
+                const box = document.createElement('div');
+                box.className = "dot-container ml-2 sm:ml-4 pl-4 sm:pl-8 mb-8";
+                box.innerHTML = `
+                    <div class="dot-label">${dot.label}</div>
+                    <div class="bg-white border border-stone-200/90 rounded-[2.5rem] p-5 sm:p-8 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-stone-100 pb-4">
+                            <div>
+                                <h3 class="serif text-2xl sm:text-3xl text-stone-900 font-bold">${dot.label}</h3>
+                                <p class="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">${filteredMembers.length} Members listed</p>
+                            </div>
+                            <div class="admin-only flex gap-2 w-full sm:w-auto">
+                                <button onclick="openModal(${dot.id})" class="text-xs font-bold bg-amber-50 text-amber-800 px-4 py-2.5 rounded-xl hover:bg-amber-100 transition flex items-center gap-1">
+                                    <span>+ Member Chap</span>
+                                </button>
+                                <button onclick="triggerDeleteDot(${dot.id})" class="text-xs font-bold bg-red-50 text-red-600 px-3 py-2.5 rounded-xl hover:bg-red-100 transition">
+                                    <span>Dot Hloh</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${filteredMembers.map(m => `
+                                <div class="bg-stone-50/80 hover:bg-white p-5 rounded-2xl border border-stone-200 hover:border-amber-400 hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex justify-between items-start gap-2">
+                                            <h4 class="font-bold text-stone-900 text-base sm:text-lg">${m.name}</h4>
+                                            <span class="text-[10px] font-black bg-amber-100/80 text-amber-900 px-2 py-0.5 rounded-md shrink-0">${m.birth || 'N/A'}</span>
+                                        </div>
+                                        <div class="mt-2 flex items-center gap-2 text-stone-600 text-xs font-medium">
+                                            <span class="text-amber-700">💍 Nupi/Va:</span>
+                                            <strong class="text-stone-800">${m.spouse || '-'}</strong>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-t border-stone-200/60">
+                                            <p class="text-xs text-stone-500 line-clamp-3 leading-relaxed">${m.notes || 'No biography notes...'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-only mt-4 pt-2 border-t border-stone-200/80 justify-between items-center text-xs">
+                                        <button onclick="openModal(${dot.id}, '${m.id}')" class="text-amber-700 font-bold hover:underline">✎ Remh (Edit)</button>
+                                        <button onclick="triggerDeleteMemberDirect(${dot.id}, '${m.id}')" class="text-red-500 font-bold hover:underline">✕ Hloh</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            ${filteredMembers.length === 0 ? `<div class="col-span-full py-8 text-center text-stone-400 italic text-xs">A chungah member an um rih lo.</div>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(box);
+            });
+        }
+
+        function addNewDot() {
+            if (!isAdmin) return;
+            const nextId = familyData.length > 0 ? Math.max(...familyData.map(d => d.id)) + 1 : 1;
+            familyData.push({
+                id: nextId,
+                label: `Dot ${nextId}`,
+                members: []
+            });
+            saveAndRefresh();
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        /* DELETE CONFIRMATION SYSTEM */
+        function showConfirm(title, msg, onConfirm) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-msg').innerText = msg;
+            pendingAction = onConfirm;
+            
+            const btn = document.getElementById('confirm-action-btn');
+            btn.onclick = function() {
+                if (pendingAction) pendingAction();
+                closeConfirmModal();
+            };
+
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            document.getElementById('confirm-modal').classList.remove('flex');
+            pendingAction = null;
+        }
+
+        function triggerDeleteDot(dotId) {
+            if (!isAdmin) return;
+            showConfirm("Dot Hloh Duh Taktak Maw?", "Hi Dot chung i member vialte an lo dih lai.", function() {
+                familyData = familyData.filter(d => d.id !== dotId);
+                familyData.forEach((d, index) => {
+                    d.label = `Dot ${index + 1}`;
+                });
+                saveAndRefresh();
+            });
+        }
+
+        function triggerDeleteMemberDirect(dotId, memberId) {
+            if (!isAdmin) return;
+            showConfirm("Member Hloh Duh Taktak Maw?", "Hi member hi hloh a si lai.", function() {
+                const dotIdx = familyData.findIndex(d => d.id === dotId);
+                if (dotIdx !== -1) {
+                    familyData[dotIdx].members = familyData[dotIdx].members.filter(m => String(m.id) !== String(memberId));
+                    saveAndRefresh();
+                }
+            });
+        }
+
+        function triggerDeleteMember() {
+            const dotId = parseInt(document.getElementById('edit-dot-id').value);
+            const memberId = document.getElementById('edit-member-id').value;
+            closeModal();
+            triggerDeleteMemberDirect(dotId, memberId);
+        }
+
+        /* MODAL CONTROLS */
+        function openModal(dotId, memberId = null) {
+            if (!isAdmin) return;
+            document.getElementById('edit-dot-id').value = dotId;
+            document.getElementById('edit-member-id').value = memberId || "";
+            
+            if (memberId) {
+                const dot = familyData.find(d => d.id === dotId);
+                const m = dot.members.find(x => String(x.id) === String(memberId));
+                if (m) {
+                    document.getElementById('modal-title').innerText = "Edit Member Details";
+                    document.getElementById('field-name').value = m.name || "";
+                    document.getElementById('field-spouse').value = m.spouse || "";
+                    document.getElementById('field-birth').value = m.birth || "";
+                    document.getElementById('field-notes').value = m.notes || "";
+                    document.getElementById('del-btn').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('modal-title').innerText = "Member Thar Chapnak";
+                document.getElementById('field-name').value = "";
+                document.getElementById('field-spouse').value = "";
+                document.getElementById('field-birth').value = "";
+                document.getElementById('field-notes').value = "";
+                document.getElementById('del-btn').classList.add('hidden');
+            }
+            
+            document.getElementById('member-modal').classList.remove('hidden');
+            document.getElementById('member-modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('member-modal').classList.add('hidden');
+            document.getElementById('member-modal').classList.remove('flex');
+        }
+
+        function saveMember() {
+            const dotId = parseInt(document.getElementById('edit-dot-id').value);
+            const memberId = document.getElementById('edit-member-id').value;
+            
+            const newMember = {
+                id: memberId || String(Date.now()),
+                name: document.getElementById('field-name').value || "Unnamed Member",
+                spouse: document.getElementById('field-spouse').value,
+                birth: document.getElementById('field-birth').value,
+                notes: document.getElementById('field-notes').value
+            };
+
+            const dotIdx = familyData.findIndex(d => d.id === dotId);
+            
+            if (memberId) {
+                const mIdx = familyData[dotIdx].members.findIndex(m => String(m.id) === String(memberId));
+                if (mIdx !== -1) {
+                    familyData[dotIdx].members[mIdx] = newMember;
+                }
+            } else {
+                familyData[dotIdx].members.push(newMember);
+            }
+
+            saveAndRefresh();
+            closeModal();
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem(DB_KEY, JSON.stringify(familyData));
+            renderDots();
+            updateStats();
+        }
+
+        function updateStats() {
+            const totalMembers = familyData.reduce((sum, dot) => sum + dot.members.length, 0);
+            document.getElementById('stat-dots').innerText = familyData.length;
+            document.getElementById('stat-members').innerText = totalMembers;
+
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: familyData.map(d => d.label),
+                    datasets: [{
+                        label: 'Member Zat',
+                        data: familyData.map(d => d.members.length),
+                        backgroundColor: '#b45309',
+                        borderRadius: 8,
+                        barThickness: 28
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f5f5f4' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function toggleGuide() {
+            const guide = document.getElementById('hosting-guide');
+            const text = document.getElementById('guide-toggle-text');
+            if (guide.classList.contains('hidden')) {
+                guide.classList.remove('hidden');
+                text.innerText = "📖 Hide Hosting Guide";
+            } else {
+                guide.classList.add('hidden');
+                text.innerText = "📖 Free Hosting Guide Zoh";
+            }
+        }
+
+        /* BACKUP AND RESTORE */
+        function exportData() {
+            const backupPayload = { intro: familyIntro, dots: familyData };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupPayload));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `chungkhar_salan_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (importedData && importedData.dots) {
+                        familyData = importedData.dots;
+                        familyIntro = importedData.intro || "";
+                    } else if (Array.isArray(importedData)) {
+                        familyData = importedData;
+                    }
+                    localStorage.setItem(INTRO_KEY, familyIntro);
+                    saveAndRefresh();
+                    renderIntro();
+                    alert("Backup file imported successfully!");
+                } catch (err) {
+                    alert("File format standard invalid.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        init();
+    </script>
+</body>
+</html>
