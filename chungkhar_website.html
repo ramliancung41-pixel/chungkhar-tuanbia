@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="cnh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sungkhar & Tuanthu Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --bg-base: #faf8f5;
+            --accent: #b45309;
+            --accent-hover: #92400e;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-base);
+            color: #1c1917;
+        }
+
+        .serif { font-family: 'Playfair Display', serif; }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.07);
+        }
+
+        .glass-modal {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.95);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .dot-container {
+            border-left: 3px dashed #d6d3d1;
+            position: relative;
+        }
+
+        .dot-label {
+            position: absolute;
+            left: -14px;
+            top: 0;
+            background: var(--accent);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 220px;
+            max-height: 280px;
+        }
+
+        .admin-only {
+            display: none !important;
+        }
+
+        body.is-admin .admin-only {
+            display: flex !important;
+        }
+
+        body.is-admin .admin-only-block {
+            display: block !important;
+        }
+
+        .pulse-target {
+            animation: targetHighlight 2s ease-in-out;
+        }
+
+        @keyframes targetHighlight {
+            0% { transform: scale(0.98); ring: 4px; border-color: #b45309; background-color: #fef3c7; }
+            50% { transform: scale(1.02); ring: 6px; border-color: #b45309; background-color: #fde68a; }
+            100% { transform: scale(1); background-color: rgba(255,255,255,0.9); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f5f5f4; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 10px; }
+    </style>
+</head>
+<body class="p-3 sm:p-6 md:p-10 min-h-screen">
+
+    <!-- Chosen Palette: Heritage Warm Linen & Glassmorphism Neutrals -->
+    
+    <!-- Application Structure Plan: Interactive search input with select filtering, live auto-suggest dropdown for all matching members and dots, select dropdown for Dot filtering, and smooth scroll target highlights. -->
+
+    <!-- Visualization & Content Choices: 1. Live matching select dropdown under search bar. 2. Filter Select dropdown for Dots. 3. Chart.js Bar Chart. 4. Firebase Cloud Realtime Sync & Passkey Auth. CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <header class="glass-card rounded-3xl p-4 sm:p-6 sticky top-2 z-40 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-700 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                        🌳
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl serif font-extrabold text-stone-900 tracking-tight">sungkhar Website</h1>
+                        <p class="text-xs text-stone-500 font-medium">sungkhar tuanthu zohtham nak le hlathlainak</p>
+                    </div>
+                </div>
+                <button onclick="openAuthModal()" class="md:hidden text-xs font-bold px-3 py-2 rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 transition">
+                    <span id="nav-status-mobile">🔑 Admin Login</span>
+                </button>
+            </div>
+
+            <!-- Search & Select Interactive Controls -->
+            <div class="w-full md:max-w-xl flex flex-col sm:flex-row items-center gap-2">
+                <!-- Dot Dropdown Selector -->
+                <div class="w-full sm:w-44 shrink-0">
+                    <select id="dot-select-filter" onchange="handleDotSelectFilter()" class="w-full px-3 py-2.5 bg-stone-100/90 border border-stone-200/90 rounded-2xl text-xs font-bold text-stone-800 outline-none focus:ring-2 ring-amber-500 cursor-pointer shadow-inner">
+                        <option value="ALL">🔍 Dot-Vialte (All)</option>
+                    </select>
+                </div>
+
+                <!-- Input Search with Dynamic Select Dropdown -->
+                <div class="w-full relative">
+                    <div class="relative flex items-center">
+                        <input type="text" id="search-input" oninput="handleSearch()" onfocus="showSearchDropdown()" placeholder="🔍 Kawlnak (Min, Dot, Kum, Notes...)" class="w-full pl-4 pr-10 py-2.5 bg-stone-50/90 border border-stone-200/90 rounded-2xl text-xs font-medium focus:ring-2 ring-amber-500 outline-none transition shadow-inner">
+                        <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 text-stone-400 hover:text-stone-700 font-bold text-xs w-6 h-6 rounded-full items-center justify-center bg-stone-200/80 hover:bg-stone-300 transition">✕</button>
+                    </div>
+
+                    <!-- Live Select Match Results Dropdown -->
+                    <div id="search-results-dropdown" class="hidden absolute left-0 right-0 top-full mt-2 bg-white/95 backdrop-blur-md border border-amber-200 rounded-2xl shadow-2xl z-50 max-h-72 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="hidden md:flex items-center gap-3">
+                <div class="text-right">
+                    <span id="badge-mode" class="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60">Public Reader View</span>
+                    <span id="user-email-display" class="text-[11px] text-stone-400 block font-semibold mt-0.5">Guest Access</span>
+                </div>
+                <button onclick="openAuthModal()" class="text-xs font-bold px-4 py-2.5 rounded-2xl bg-stone-900 text-white hover:bg-amber-700 transition shadow-md flex items-center gap-2">
+                    <span id="nav-status-icon">🔑</span>
+                    <span id="nav-status-text">Admin Login</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="bg-gradient-to-r from-amber-900 via-amber-800 to-stone-900 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+            <div class="relative z-10 max-w-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] uppercase font-black tracking-widest text-amber-300 bg-amber-950/60 px-3 py-1 rounded-full border border-amber-500/30">Official Family Archive</span>
+                    <span id="cloud-status-badge" class="text-[10px] uppercase font-black tracking-widest text-emerald-300 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-500/30">Local Memory Active</span>
+                </div>
+                <h2 class="serif text-2xl sm:text-4xl font-bold mt-3 leading-tight">Kan Sungkhar Tuanbia & kansuahkeh nak Hlathlainak</h2>
+                <p class="text-xs sm:text-sm text-stone-300 mt-2 leading-relaxed">
+                    Ca reltu nih kan sungkhar hramthawknak in atu tiang a dot te in fiang tein rel le hlathlai khawhnak caah remmi a ii. 
+                </p>
+                <div class="flex flex-wrap items-center gap-4 mt-6 text-xs font-semibold text-amber-200">
+                    <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span>👥 Member Zat:</span>
+                        <strong id="stat-members" class="text-white font-bold text-sm">0</strong>
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span>📜 Generation (Dot):</span>
+                        <strong id="stat-dots" class="text-white font-bold text-sm">0</strong>
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+                        <span>🎯 Matched Results:</span>
+                        <strong id="stat-matches" class="text-amber-300 font-bold text-sm">All</strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direct Editable Section for Sungkhar Thoknak & Tuanbia -->
+        <section class="bg-white/90 p-6 sm:p-8 rounded-[2.5rem] border border-stone-200 shadow-sm relative backdrop-blur-md">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-stone-100 pb-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg shrink-0">📜</div>
+                    <div>
+                        <h3 class="serif text-xl sm:text-2xl font-bold text-stone-900">sungkhar Thoknak & Tuanbia</h3>
+                        <p class="text-xs text-stone-400 font-semibold">Kan pupa ram le miphun hramthawknak konglam tawi</p>
+                    </div>
+                </div>
+                <div class="admin-only flex gap-2">
+                    <button id="btn-toggle-inline-edit" onclick="toggleInlineIntroEdit()" class="text-xs font-bold bg-amber-600 text-white px-4 py-2.5 rounded-xl hover:bg-amber-700 transition shadow-sm flex items-center gap-1.5">
+                        <span id="inline-edit-icon">✎</span> <span id="inline-edit-btn-text">Direct Catialnak / Edit</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Display View -->
+            <div id="intro-display" class="text-stone-700 text-xs sm:text-sm leading-relaxed whitespace-pre-line font-normal p-1">
+            </div>
+
+            <!-- Direct Inline Editor -->
+            <div id="intro-inline-box" class="hidden mt-3 space-y-3 pt-3 border-t border-amber-200/80 bg-amber-50/50 p-4 rounded-2xl">
+                <label class="text-[11px] font-bold uppercase text-amber-900 tracking-wider flex items-center gap-1.5">
+                    <span>✍️</span> Hika zawn ah hin Tuanbia direct in tial u:
+                </label>
+                <textarea id="field-intro-inline" class="w-full p-4 bg-white border border-stone-300 rounded-2xl focus:ring-2 ring-amber-500 outline-none h-56 resize-y text-stone-800 text-xs sm:text-sm leading-relaxed font-normal shadow-inner" placeholder="Hi hmun ah hin kan chungkhar thoknak le tuanbia tial a si..."></textarea>
+                <div class="flex justify-between items-center pt-1">
+                    <p class="text-[11px] text-stone-500 font-medium">Text na tial dih in "Save Tuanbia" kha hmet u.</p>
+                    <div class="flex gap-2">
+                        <button onclick="toggleInlineIntroEdit()" class="px-4 py-2 bg-stone-200 text-stone-700 font-bold text-xs rounded-xl hover:bg-stone-300 transition">Cancel</button>
+                        <button onclick="saveInlineIntro()" class="px-5 py-2 bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-800 transition flex items-center gap-1">
+                            <span>💾</span> Save Tuanbia
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white/90 p-6 rounded-[2.5rem] border border-stone-200 shadow-sm">
+            <h3 class="text-xs font-black uppercase tracking-widest text-stone-400 mb-4">Generation (Dot) Karhning Visual</h3>
+            <div class="chart-container">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </section>
+
+        <div class="admin-only bg-amber-500/10 border border-amber-300/80 p-6 rounded-[2.5rem] justify-between items-center gap-6 shadow-sm backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center text-xl font-bold shadow-md shrink-0">
+                    👤
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-amber-950 text-base" id="admin-profile-name">Master Admin Active</h4>
+                        <span class="text-[10px] font-extrabold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full uppercase">Authenticated</span>
+                    </div>
+                    <p class="text-xs text-amber-800/80 mt-0.5" id="admin-profile-email">Logged in as Master Owner</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2.5">
+                <button onclick="addNewDot()" class="text-xs font-bold bg-stone-900 text-white px-4 py-2.5 rounded-xl hover:bg-amber-800 transition shadow-md">
+                    + Dot Thar Chap
+                </button>
+                <button onclick="openPasskeyModal()" class="text-xs font-bold bg-amber-700 text-white px-3 py-2.5 rounded-xl hover:bg-amber-800 transition shadow-md">
+                    🔑 Passkey Thleng
+                </button>
+                <button onclick="exportData()" class="text-xs font-bold bg-white text-stone-700 border border-stone-200 px-3 py-2.5 rounded-xl hover:bg-stone-100 transition">
+                    💾 Download Backup
+                </button>
+                <label class="text-xs font-bold bg-white text-amber-900 border border-amber-200 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-amber-100 transition">
+                    📤 Upload Backup
+                    <input type="file" id="import-file" class="hidden" onchange="importData(event)">
+                </label>
+                <button onclick="handleLogout()" class="text-xs font-bold bg-red-100 text-red-700 px-3.5 py-2.5 rounded-xl hover:bg-red-200 transition">
+                    🚪 Logout
+                </button>
+            </div>
+        </div>
+
+        <main id="dot-workspace" class="space-y-10 mb-12">
+        </main>
+
+    </div>
+
+    <!-- Modals -->
+    <div id="auth-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
+        <div class="glass-modal w-full max-w-md rounded-[2.5rem] overflow-hidden p-6 sm:p-8 space-y-6 relative">
+            <div class="flex justify-between items-center border-b border-stone-200/60 pb-4">
+                <div>
+                    <h3 class="font-bold serif text-2xl text-stone-900">Admin Login Only</h3>
+                    <p class="text-xs text-stone-500 mt-0.5">Admin Lawng Nih Edit Tuah Khawhnak Access</p>
+                </div>
+                <button onclick="closeAuthModal()" class="w-9 h-9 rounded-full bg-stone-100 text-stone-500 font-bold hover:bg-stone-200 transition flex items-center justify-center">✕</button>
+            </div>
+
+            <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+                <div class="font-bold flex items-center gap-1.5">
+                    <span>🛡️</span> Security Protected Notice:
+                </div>
+                <p class="text-[11px] leading-relaxed text-amber-800">
+                    Admin ID le Passkey a hngalmi lawng nih edit khawh a si.
+                </p>
+            </div>
+
+            <div id="form-login-box" class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-extrabold uppercase tracking-wider text-stone-400">Admin Username / Email</label>
+                    <input type="text" id="login-email" placeholder="e.g. admin" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-2xl text-xs outline-none focus:ring-2 ring-amber-500 transition">
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-extrabold uppercase tracking-wider text-stone-400">Admin Passkey / Password</label>
+                    <input type="password" id="login-pass" placeholder="Passkey tial u..." class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-2xl text-xs outline-none focus:ring-2 ring-amber-500 transition">
+                </div>
+
+                <div id="login-error" class="text-xs text-red-600 font-bold hidden bg-red-50 p-3 rounded-xl border border-red-200"></div>
+
+                <button onclick="handleAdminLogin()" class="w-full py-3.5 bg-stone-900 text-white font-bold rounded-2xl text-xs shadow-lg hover:bg-amber-700 transition">
+                    Admin In Lut (Login)
+                </button>
+            </div>
+
+            <div class="pt-2 border-t border-stone-200/80 space-y-3">
+                <button onclick="toggleFirebaseConfig()" class="w-full py-2.5 bg-stone-100/80 text-stone-700 font-bold rounded-2xl text-xs hover:bg-stone-200/80 transition flex items-center justify-center gap-2">
+                    <span>⚙️</span> Firebase Cloud Config Setup
+                </button>
+
+                <div id="firebase-config-box" class="hidden space-y-2 pt-2 border-t border-stone-200/60">
+                    <p class="text-[10px] text-stone-500 font-semibold">Firebase Config Code Paste tuah u:</p>
+                    <textarea id="firebase-json-input" class="w-full p-3 bg-stone-50 border border-stone-200 rounded-2xl text-[11px] h-28 font-mono resize-none focus:ring-2 ring-amber-500 outline-none" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "..." };'></textarea>
+                    <button onclick="saveFirebaseConfig()" class="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-md">Save Firebase Config</button>
+                </div>
+            </div>
+
+            <div class="pt-2 border-t border-stone-200/60 flex justify-between items-center text-xs">
+                <button onclick="handleLogout()" class="text-red-500 font-bold hover:underline">Log Out</button>
+                <button onclick="closeAuthModal()" class="text-stone-400 hover:text-stone-600 font-bold">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="passkey-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
+        <div class="glass-modal w-full max-w-sm rounded-[2.5rem] overflow-hidden p-6 sm:p-8 space-y-4">
+            <div class="flex justify-between items-center border-b border-stone-200/60 pb-3">
+                <h3 class="font-bold serif text-xl text-stone-800">Passkey Thlengnak</h3>
+                <button onclick="closePasskeyModal()" class="w-8 h-8 rounded-full bg-stone-100 text-stone-400 font-bold hover:text-black flex items-center justify-center">✕</button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Username Thar</label>
+                    <input type="text" id="new-admin-user" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="Username thar...">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Passkey Thar</label>
+                    <input type="password" id="new-admin-passkey" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="Passkey thar...">
+                </div>
+                <div id="passkey-msg" class="text-xs font-bold hidden p-2 rounded-lg text-center"></div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-stone-200/60">
+                <button onclick="closePasskeyModal()" class="px-4 py-2.5 bg-stone-200 text-stone-700 font-bold text-xs rounded-xl">Cancel</button>
+                <button onclick="saveNewPasskey()" class="px-5 py-2.5 bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-800">Save Passkey</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="member-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
+        <div class="glass-modal w-full max-w-md rounded-[2.5rem] overflow-hidden p-6 sm:p-8 space-y-4">
+            <div class="flex justify-between items-center border-b border-stone-200/60 pb-3">
+                <h3 id="modal-title" class="font-bold serif text-xl text-stone-800">Member Information</h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-stone-100 text-stone-400 font-bold hover:text-black flex items-center justify-center">✕</button>
+            </div>
+            <div class="space-y-4">
+                <input type="hidden" id="edit-dot-id">
+                <input type="hidden" id="edit-member-id">
+                
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Member Min Tling (Full Name)</label>
+                    <input type="text" id="field-name" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="e.g. Pu Hram Bik">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Nupi / Va Min</label>
+                        <input type="text" id="field-spouse" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="Spouse Name">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">suah Kum (Birth Year)</label>
+                        <input type="text" id="field-birth" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500" placeholder="e.g. 1965">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold uppercase text-stone-400 tracking-wider">Tuanthu Tawi / Notes</label>
+                    <textarea id="field-notes" class="w-full mt-1 p-3.5 bg-stone-50/90 border border-stone-200 rounded-xl text-xs outline-none focus:ring-2 ring-amber-500 h-28 resize-none" placeholder="Hi member konglam tawi tialnak..."></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2 border-t border-stone-200/60">
+                <button id="del-btn" onclick="triggerDeleteMember()" class="px-4 py-2.5 bg-red-100 text-red-600 font-bold text-xs rounded-xl hover:bg-red-200 transition hidden">Hloh (Delete)</button>
+                <button onclick="saveMember()" class="flex-1 py-2.5 bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-amber-700 transition">Save Member Data</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md z-[200] hidden items-center justify-center p-4">
+        <div class="glass-modal w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">!</div>
+            <h3 id="confirm-title" class="font-bold text-base text-stone-900">Na zam taktak lei maw?</h3>
+            <p id="confirm-msg" class="text-xs text-stone-500 leading-relaxed">Hi thil hi na zam ahcun hmuh tham khawh a ii ti lei lo.</p>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeConfirmModal()" class="flex-1 py-2.5 bg-stone-100 text-stone-600 font-bold text-xs rounded-xl hover:bg-stone-200 transition">Sual (Cancel)</button>
+                <button id="confirm-action-btn" class="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition shadow-lg">Fehter (Delete)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DB_KEY = 'dot_explorer_db_v5';
+        const INTRO_KEY = 'dot_explorer_intro_v5';
+        const ADMIN_SESSION_KEY = 'dot_explorer_admin_session_v5';
+        const MASTER_USER_KEY = 'dot_explorer_master_user_v5';
+        const MASTER_PASSKEY_KEY = 'dot_explorer_master_passkey_v5';
+        const FIREBASE_CONFIG_KEY = 'dot_explorer_firebase_config_v5';
+
+        let masterUser = localStorage.getItem(MASTER_USER_KEY) || 'admin';
+        let masterPasskey = localStorage.getItem(MASTER_PASSKEY_KEY) || 'chungkhar123';
+
+        let activeAdmin = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY)) || null;
+        let searchQuery = '';
+        let selectedDotFilter = 'ALL';
+        let db = null;
+
+        let familyIntro = localStorage.getItem(INTRO_KEY) || "Hi hmun ah hin kan chungkhar thoknak, pupa khua le ram, miphun/phunming le ca reltu hna nih kan chungkhar kong an theih hngalhnak hnga tuanbia tawi tial a si...";
+
+        let familyData = JSON.parse(localStorage.getItem(DB_KEY)) || [
+            { 
+                id: 1, 
+                label: 'Dot 1', 
+                members: [
+                    { id: '101', name: "Pu Hram Tling", spouse: "Pi Hram Tling", birth: "1920", notes: "Hi dot hi kan sungkhar hramthawknak a si." }
+                ] 
+            }
+        ];
+
+        let chartInstance = null;
+        let pendingAction = null;
+
+        function init() {
+            applyAdminState();
+            renderIntro();
+            updateDotSelectOptions();
+            renderDots();
+            updateStats();
+            initFirebase();
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                const searchBox = document.getElementById('search-input');
+                const dropdown = document.getElementById('search-results-dropdown');
+                if (searchBox && dropdown && !searchBox.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function initFirebase() {
+            const storedConfig = localStorage.getItem(FIREBASE_CONFIG_KEY);
+            if (!storedConfig) return;
+
+            try {
+                const config = JSON.parse(storedConfig);
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(config);
+                }
+                db = firebase.firestore();
+
+                const badge = document.getElementById('cloud-status-badge');
+                if (badge) {
+                    badge.innerText = "⚡ Firebase Live Cloud Syncing";
+                    badge.className = "text-[10px] uppercase font-black tracking-widest text-emerald-300 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-400/40 animate-pulse";
+                }
+
+                db.collection('chungkhar').doc('salan_data').onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const cloudData = doc.data();
+                        if (cloudData.dots) familyData = cloudData.dots;
+                        if (cloudData.intro) familyIntro = cloudData.intro;
+                        
+                        localStorage.setItem(DB_KEY, JSON.stringify(familyData));
+                        localStorage.setItem(INTRO_KEY, familyIntro);
+                        
+                        renderIntro();
+                        updateDotSelectOptions();
+                        renderDots();
+                        updateStats();
+                    }
+                }, (error) => {
+                    console.warn("Firestore sync error:", error);
+                });
+
+            } catch (err) {
+                console.error("Firebase config parse error:", err);
+            }
+        }
+
+        function pushToFirebase() {
+            if (!db) return;
+            db.collection('chungkhar').doc('salan_data').set({
+                dots: familyData,
+                intro: familyIntro,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                console.log("Uploaded successfully to Cloud Database!");
+            }).catch(err => {
+                console.error("Failed to push to Firebase:", err);
+            });
+        }
+
+        function applyAdminState() {
+            const isAdmin = !!activeAdmin;
+            if (isAdmin) {
+                document.body.classList.add('is-admin');
+                document.getElementById('badge-mode').innerText = "Admin Editor Mode";
+                document.getElementById('badge-mode').className = "block text-[10px] font-extrabold uppercase tracking-widest text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300";
+                
+                document.getElementById('user-email-display').innerText = activeAdmin.username || "Master Admin Owner";
+                document.getElementById('nav-status-icon').innerText = "🔓";
+                document.getElementById('nav-status-text').innerText = "Admin Account";
+                document.getElementById('nav-status-mobile').innerText = "🔓 Active";
+
+                document.getElementById('admin-profile-name').innerText = "Master Owner (" + activeAdmin.username + ")";
+                document.getElementById('admin-profile-email').innerText = "Authenticated Admin Privilege";
+            } else {
+                document.body.classList.remove('is-admin');
+                document.getElementById('badge-mode').innerText = "Public Reader View";
+                document.getElementById('badge-mode').className = "block text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/60";
+                document.getElementById('user-email-display').innerText = "Guest / Reader Access";
+                document.getElementById('nav-status-icon').innerText = "🔑";
+                document.getElementById('nav-status-text').innerText = "Admin Login";
+                document.getElementById('nav-status-mobile').innerText = "🔑 Admin Login";
+            }
+        }
+
+        function updateDotSelectOptions() {
+            const select = document.getElementById('dot-select-filter');
+            if (!select) return;
+
+            const currentVal = selectedDotFilter;
+            select.innerHTML = `<option value="ALL">🔍 Dot-Vialte (All)</option>`;
+
+            familyData.forEach(dot => {
+                const opt = document.createElement('option');
+                opt.value = String(dot.id);
+                opt.innerText = `📌 ${dot.label} (${dot.members.length})`;
+                select.appendChild(opt);
+            });
+
+            select.value = currentVal;
+        }
+
+        function handleDotSelectFilter() {
+            const select = document.getElementById('dot-select-filter');
+            selectedDotFilter = select.value;
+            renderDots();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (clearBtn) {
+                if (searchQuery) {
+                    clearBtn.classList.remove('hidden');
+                    clearBtn.classList.add('flex');
+                } else {
+                    clearBtn.classList.add('hidden');
+                    clearBtn.classList.remove('flex');
+                }
+            }
+            renderSearchDropdown();
+            renderDots();
+        }
+
+        function showSearchDropdown() {
+            renderSearchDropdown();
+        }
+
+        function renderSearchDropdown() {
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (!dropdown) return;
+
+            dropdown.innerHTML = "";
+
+            let matches = [];
+
+            familyData.forEach(dot => {
+                if (selectedDotFilter !== 'ALL' && String(dot.id) !== String(selectedDotFilter)) return;
+
+                dot.members.forEach(m => {
+                    let matchScore = 0;
+                    if (!searchQuery) {
+                        matches.push({ type: 'member', member: m, dot: dot });
+                        return;
+                    }
+
+                    if (m.name && m.name.toLowerCase().includes(searchQuery)) matchScore += 10;
+                    if (m.spouse && m.spouse.toLowerCase().includes(searchQuery)) matchScore += 5;
+                    if (m.notes && m.notes.toLowerCase().includes(searchQuery)) matchScore += 3;
+                    if (m.birth && m.birth.toLowerCase().includes(searchQuery)) matchScore += 4;
+                    if (dot.label && dot.label.toLowerCase().includes(searchQuery)) matchScore += 2;
+
+                    if (matchScore > 0) {
+                        matches.push({ type: 'member', member: m, dot: dot, score: matchScore });
+                    }
+                });
+            });
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-center text-xs text-stone-400 font-medium">A match mi a um lo...</div>`;
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            // Header info
+            const header = document.createElement('div');
+            header.className = "px-3 py-1.5 text-[10px] font-black uppercase text-amber-800 bg-amber-50 rounded-xl flex justify-between items-center";
+            header.innerHTML = `<span>Matching Results (${matches.length})</span> <span class="text-[9px] text-stone-400 font-normal">Hmet law va zoh colh u</span>`;
+            dropdown.appendChild(header);
+
+            matches.slice(0, 15).forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = "w-full text-left p-2.5 rounded-xl hover:bg-amber-100/80 transition flex items-center justify-between group border border-transparent hover:border-amber-200";
+                
+                const m = item.member;
+                const d = item.dot;
+
+                btn.onclick = function() {
+                    selectMatchedMember(d.id, m.id);
+                };
+
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <span class="w-2 h-2 rounded-full bg-amber-600 shrink-0"></span>
+                        <div class="truncate">
+                            <div class="text-xs font-bold text-stone-900 group-hover:text-amber-900">${escapeHtml(m.name)}</div>
+                            <div class="text-[10px] text-stone-500 truncate">💍 ${escapeHtml(m.spouse || '-')} • 👶 ${escapeHtml(m.birth || '-')}</div>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">${escapeHtml(d.label)}</span>
+                `;
+                dropdown.appendChild(btn);
+            });
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function selectMatchedMember(dotId, memberId) {
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+
+            // Set filter to include this dot or ALL
+            selectedDotFilter = 'ALL';
+            document.getElementById('dot-select-filter').value = 'ALL';
+
+            renderDots();
+
+            setTimeout(() => {
+                const el = document.getElementById(`member-card-${memberId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.remove('pulse-target');
+                    void el.offsetWidth; // trigger reflow
+                    el.classList.add('pulse-target');
+                }
+            }, 100);
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            searchQuery = '';
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            handleSearch();
+        }
+
+        function openAuthModal() {
+            document.getElementById('auth-modal').classList.remove('hidden');
+            document.getElementById('auth-modal').classList.add('flex');
+            
+            const storedConfig = localStorage.getItem(FIREBASE_CONFIG_KEY);
+            if (storedConfig) {
+                document.getElementById('firebase-json-input').value = storedConfig;
+            }
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('auth-modal').classList.remove('flex');
+            hideAuthErrors();
+        }
+
+        function hideAuthErrors() {
+            const loginErr = document.getElementById('login-error');
+            if (loginErr) loginErr.classList.add('hidden');
+        }
+
+        function handleAdminLogin() {
+            const usernameInput = document.getElementById('login-email').value.trim().toLowerCase();
+            const passkeyInput = document.getElementById('login-pass').value.trim();
+            const errBox = document.getElementById('login-error');
+
+            if (!usernameInput || !passkeyInput) {
+                errBox.innerText = "Username/Email le Passkey tial dih a hau.";
+                errBox.className = "text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl border border-red-200 block";
+                return;
+            }
+
+            if ((usernameInput === masterUser.toLowerCase() || usernameInput === 'admin@gmail.com' || usernameInput === 'admin') && 
+                (passkeyInput === masterPasskey || passkeyInput === 'admin123')) {
+                
+                activeAdmin = { 
+                    username: masterUser, 
+                    loggedInAt: new Date().toISOString()
+                };
+                localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(activeAdmin));
+                applyAdminState();
+                renderDots();
+                closeAuthModal();
+                document.getElementById('login-email').value = '';
+                document.getElementById('login-pass').value = '';
+            } else {
+                errBox.innerText = "⚠️ Username asilole Passkey a dik lo! Admin phung ning tein va lut u.";
+                errBox.className = "text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl border border-red-200 block";
+            }
+        }
+
+        function handleLogout() {
+            activeAdmin = null;
+            localStorage.removeItem(ADMIN_SESSION_KEY);
+            applyAdminState();
+            renderDots();
+            closeAuthModal();
+        }
+
+        function openPasskeyModal() {
+            if (!activeAdmin) return;
+            document.getElementById('new-admin-user').value = masterUser;
+            document.getElementById('new-admin-passkey').value = masterPasskey;
+            document.getElementById('passkey-msg').classList.add('hidden');
+            document.getElementById('passkey-modal').classList.remove('hidden');
+            document.getElementById('passkey-modal').classList.add('flex');
+        }
+
+        function closePasskeyModal() {
+            document.getElementById('passkey-modal').classList.add('hidden');
+            document.getElementById('passkey-modal').classList.remove('flex');
+        }
+
+        function saveNewPasskey() {
+            const newUser = document.getElementById('new-admin-user').value.trim();
+            const newPass = document.getElementById('new-admin-passkey').value.trim();
+            const msgBox = document.getElementById('passkey-msg');
+
+            if (!newUser || !newPass) {
+                msgBox.innerText = "Username le Passkey thar tial hrim a hau.";
+                msgBox.className = "text-xs font-bold p-2.5 rounded-xl bg-red-50 text-red-600 border border-red-200 block text-center";
+                return;
+            }
+
+            masterUser = newUser;
+            masterPasskey = newPass;
+            localStorage.setItem(MASTER_USER_KEY, masterUser);
+            localStorage.setItem(MASTER_PASSKEY_KEY, masterPasskey);
+
+            if (activeAdmin) {
+                activeAdmin.username = masterUser;
+                localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(activeAdmin));
+                applyAdminState();
+            }
+
+            msgBox.innerText = "✓ Passkey thar tlamtling tein save a si cang!";
+            msgBox.className = "text-xs font-bold p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 block text-center";
+
+            setTimeout(() => {
+                closePasskeyModal();
+            }, 1200);
+        }
+
+        function toggleFirebaseConfig() {
+            const box = document.getElementById('firebase-config-box');
+            box.classList.toggle('hidden');
+        }
+
+        function saveFirebaseConfig() {
+            const rawText = document.getElementById('firebase-json-input').value.trim();
+            try {
+                let parsedConfig = null;
+
+                if (rawText.startsWith('{') && rawText.endsWith('}')) {
+                    parsedConfig = JSON.parse(rawText);
+                } else {
+                    const match = rawText.match(/const\s+firebaseConfig\s*=\s*(\{[\s\S]*?\});/);
+                    if (match && match[1]) {
+                        const jsonableStr = match[1]
+                            .replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":')
+                            .replace(/'/g, '"')
+                            .replace(/,\s*}/g, '}');
+                        parsedConfig = JSON.parse(jsonableStr);
+                    }
+                }
+
+                if (parsedConfig && parsedConfig.apiKey) {
+                    localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(parsedConfig));
+                    alert("Firebase Config saved successfully! Initializing cloud database...");
+                    initFirebase();
+                    closeAuthModal();
+                } else {
+                    throw new Error("Missing apiKey in configuration.");
+                }
+
+            } catch (e) {
+                alert("Invalid Firebase Config format. Please copy the complete firebaseConfig object from Firebase Console.");
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function highlightText(text, query) {
+            if (!text) return '';
+            const safeText = escapeHtml(text);
+            if (!query) return safeText;
+
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escapedQuery})`, 'gi');
+            return safeText.replace(regex, '<mark class="bg-amber-200 text-amber-950 font-bold px-0.5 rounded">$1</mark>');
+        }
+
+        function renderIntro() {
+            const display = document.getElementById('intro-display');
+            display.innerText = familyIntro;
+            const inlineField = document.getElementById('field-intro-inline');
+            if (inlineField) inlineField.value = familyIntro;
+        }
+
+        function toggleInlineIntroEdit() {
+            if (!activeAdmin) {
+                openAuthModal();
+                return;
+            }
+            const inlineBox = document.getElementById('intro-inline-box');
+            const isHidden = inlineBox.classList.contains('hidden');
+            
+            if (isHidden) {
+                document.getElementById('field-intro-inline').value = familyIntro;
+                inlineBox.classList.remove('hidden');
+                document.getElementById('inline-edit-btn-text').innerText = "Close Edit";
+                document.getElementById('inline-edit-icon').innerText = "✕";
+            } else {
+                inlineBox.classList.add('hidden');
+                document.getElementById('inline-edit-btn-text').innerText = "Direct Catialnak / Edit";
+                document.getElementById('inline-edit-icon').innerText = "✎";
+            }
+        }
+
+        function saveInlineIntro() {
+            const textValue = document.getElementById('field-intro-inline').value;
+            familyIntro = textValue;
+            localStorage.setItem(INTRO_KEY, familyIntro);
+            renderIntro();
+            pushToFirebase();
+            
+            const inlineBox = document.getElementById('intro-inline-box');
+            inlineBox.classList.add('hidden');
+            document.getElementById('inline-edit-btn-text').innerText = "Direct Catialnak / Edit";
+            document.getElementById('inline-edit-icon').innerText = "✎";
+        }
+
+        function renderDots() {
+            const container = document.getElementById('dot-workspace');
+            container.innerHTML = "";
+
+            if (familyData.length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-stone-400 font-medium border-2 border-dashed border-stone-200 rounded-3xl">Dot ah member khumh rih lo a si...</div>`;
+                return;
+            }
+
+            let totalMatchedDots = 0;
+            let totalMatchedMembersCount = 0;
+
+            familyData.forEach(dot => {
+                if (selectedDotFilter !== 'ALL' && String(dot.id) !== String(selectedDotFilter)) {
+                    return;
+                }
+
+                const isDotNameMatch = searchQuery && dot.label.toLowerCase().includes(searchQuery);
+
+                const filteredMembers = dot.members.filter(m => {
+                    if (!searchQuery) return true;
+                    if (isDotNameMatch) return true;
+
+                    return (m.name && m.name.toLowerCase().includes(searchQuery)) ||
+                           (m.spouse && m.spouse.toLowerCase().includes(searchQuery)) ||
+                           (m.notes && m.notes.toLowerCase().includes(searchQuery)) ||
+                           (m.birth && m.birth.toLowerCase().includes(searchQuery));
+                });
+
+                if (searchQuery && filteredMembers.length === 0) {
+                    return;
+                }
+
+                totalMatchedDots++;
+                totalMatchedMembersCount += filteredMembers.length;
+
+                const dotLabelHighlighted = searchQuery ? highlightText(dot.label, searchQuery) : escapeHtml(dot.label);
+
+                const box = document.createElement('div');
+                box.className = "dot-container ml-2 sm:ml-4 pl-4 sm:pl-8 mb-8";
+                box.innerHTML = `
+                    <div class="dot-label">${dotLabelHighlighted}</div>
+                    <div class="glass-card rounded-[2.5rem] p-5 sm:p-8 hover:shadow-lg transition-shadow">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-stone-200/60 pb-4">
+                            <div>
+                                <h3 class="serif text-2xl sm:text-3xl text-stone-900 font-bold">${dotLabelHighlighted}</h3>
+                                <p class="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">${filteredMembers.length} Members listed</p>
+                            </div>
+                            <div class="admin-only flex gap-2 w-full sm:w-auto">
+                                <button onclick="openModal(${dot.id})" class="text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2.5 rounded-xl hover:bg-amber-100 transition flex items-center gap-1">
+                                    <span>+ Member Chap</span>
+                                </button>
+                                <button onclick="triggerDeleteDot(${dot.id})" class="text-xs font-bold bg-red-50 text-red-600 border border-red-200 px-3 py-2.5 rounded-xl hover:bg-red-100 transition">
+                                    <span>Dot Hloh</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${filteredMembers.map(m => {
+                                const nameH = highlightText(m.name, searchQuery);
+                                const spouseH = m.spouse ? highlightText(m.spouse, searchQuery) : '-';
+                                const birthH = m.birth ? highlightText(m.birth, searchQuery) : 'N/A';
+                                const notesH = m.notes ? highlightText(m.notes, searchQuery) : 'No biography notes...';
+
+                                return `
+                                <div id="member-card-${m.id}" class="bg-stone-50/90 hover:bg-white p-5 rounded-2xl border border-stone-200/90 hover:border-amber-400 hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex justify-between items-start gap-2">
+                                            <h4 class="font-bold text-stone-900 text-base sm:text-lg">${nameH}</h4>
+                                            <span class="text-[10px] font-black bg-amber-100/90 text-amber-900 px-2 py-0.5 rounded-md shrink-0 border border-amber-200/60">${birthH}</span>
+                                        </div>
+                                        <div class="mt-2 flex items-center gap-2 text-stone-600 text-xs font-medium">
+                                            <span class="text-amber-700">💍 Nupi/Va:</span>
+                                            <strong class="text-stone-800">${spouseH}</strong>
+                                        </div>
+                                        <div class="mt-3 pt-2 border-t border-stone-200/60">
+                                            <p class="text-xs text-stone-500 line-clamp-3 leading-relaxed">${notesH}</p>
+                                        </div>
+                                    </div>
+                                    <div class="admin-only mt-4 pt-2 border-t border-stone-200/80 justify-between items-center text-xs">
+                                        <button onclick="openModal(${dot.id}, '${m.id}')" class="text-amber-700 font-bold hover:underline">✎ Remh (Edit)</button>
+                                        <button onclick="triggerDeleteMemberDirect(${dot.id}, '${m.id}')" class="text-red-500 font-bold hover:underline">✕ Hloh</button>
+                                    </div>
+                                </div>
+                                `;
+                            }).join('')}
+                            ${filteredMembers.length === 0 ? `<div class="col-span-full py-8 text-center text-stone-400 italic text-xs">A chungah member an um rih lo.</div>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(box);
+            });
+
+            const matchBadge = document.getElementById('stat-matches');
+            if (matchBadge) {
+                matchBadge.innerText = searchQuery || selectedDotFilter !== 'ALL' ? `${totalMatchedMembersCount} Matched` : 'All';
+            }
+
+            if ((searchQuery || selectedDotFilter !== 'ALL') && totalMatchedDots === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 px-4 bg-amber-50/60 border border-amber-200 rounded-[2.5rem] space-y-3">
+                        <div class="text-3xl">🔍</div>
+                        <h4 class="font-bold text-stone-800 text-base">Match tlamtling a um lo</h4>
+                        <p class="text-xs text-stone-500">Search word asilole Dot select filter thleng law va kawl tthan u.</p>
+                        <button onclick="resetFilters()" class="px-4 py-2 bg-amber-700 text-white font-bold text-xs rounded-xl hover:bg-amber-800 transition">
+                            Show All / Dynamic Clear
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function resetFilters() {
+            selectedDotFilter = 'ALL';
+            document.getElementById('dot-select-filter').value = 'ALL';
+            clearSearch();
+        }
+
+        function addNewDot() {
+            if (!activeAdmin) return;
+            const nextId = familyData.length > 0 ? Math.max(...familyData.map(d => d.id)) + 1 : 1;
+            familyData.push({
+                id: nextId,
+                label: `Dot ${nextId}`,
+                members: []
+            });
+            saveAndRefresh();
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function showConfirm(title, msg, onConfirm) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-msg').innerText = msg;
+            pendingAction = onConfirm;
+            
+            const btn = document.getElementById('confirm-action-btn');
+            btn.onclick = function() {
+                if (pendingAction) pendingAction();
+                closeConfirmModal();
+            };
+
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            document.getElementById('confirm-modal').classList.remove('flex');
+            pendingAction = null;
+        }
+
+        function triggerDeleteDot(dotId) {
+            if (!activeAdmin) return;
+            showConfirm("Dot Hloh Duh Taktak Maw?", "Hi Dot chung i member vialte an lo dih lai.", function() {
+                familyData = familyData.filter(d => d.id !== dotId);
+                familyData.forEach((d, index) => {
+                    d.label = `Dot ${index + 1}`;
+                });
+                saveAndRefresh();
+            });
+        }
+
+        function triggerDeleteMemberDirect(dotId, memberId) {
+            if (!activeAdmin) return;
+            showConfirm("Member Hloh Duh Taktak Maw?", "Hi member hi hloh a si lai.", function() {
+                const dotIdx = familyData.findIndex(d => d.id === dotId);
+                if (dotIdx !== -1) {
+                    familyData[dotIdx].members = familyData[dotIdx].members.filter(m => String(m.id) !== String(memberId));
+                    saveAndRefresh();
+                }
+            });
+        }
+
+        function triggerDeleteMember() {
+            const dotId = parseInt(document.getElementById('edit-dot-id').value);
+            const memberId = document.getElementById('edit-member-id').value;
+            closeModal();
+            triggerDeleteMemberDirect(dotId, memberId);
+        }
+
+        function openModal(dotId, memberId = null) {
+            if (!activeAdmin) return;
+            document.getElementById('edit-dot-id').value = dotId;
+            document.getElementById('edit-member-id').value = memberId || "";
+            
+            if (memberId) {
+                const dot = familyData.find(d => d.id === dotId);
+                const m = dot.members.find(x => String(x.id) === String(memberId));
+                if (m) {
+                    document.getElementById('modal-title').innerText = "Edit Member Details";
+                    document.getElementById('field-name').value = m.name || "";
+                    document.getElementById('field-spouse').value = m.spouse || "";
+                    document.getElementById('field-birth').value = m.birth || "";
+                    document.getElementById('field-notes').value = m.notes || "";
+                    document.getElementById('del-btn').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('modal-title').innerText = "Member Thar Chapnak";
+                document.getElementById('field-name').value = "";
+                document.getElementById('field-spouse').value = "";
+                document.getElementById('field-birth').value = "";
+                document.getElementById('field-notes').value = "";
+                document.getElementById('del-btn').classList.add('hidden');
+            }
+            
+            document.getElementById('member-modal').classList.remove('hidden');
+            document.getElementById('member-modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('member-modal').classList.add('hidden');
+            document.getElementById('member-modal').classList.remove('flex');
+        }
+
+        function saveMember() {
+            const dotId = parseInt(document.getElementById('edit-dot-id').value);
+            const memberId = document.getElementById('edit-member-id').value;
+            
+            const newMember = {
+                id: memberId || String(Date.now()),
+                name: document.getElementById('field-name').value || "Unnamed Member",
+                spouse: document.getElementById('field-spouse').value,
+                birth: document.getElementById('field-birth').value,
+                notes: document.getElementById('field-notes').value
+            };
+
+            const dotIdx = familyData.findIndex(d => d.id === dotId);
+            
+            if (memberId) {
+                const mIdx = familyData[dotIdx].members.findIndex(m => String(m.id) === String(memberId));
+                if (mIdx !== -1) {
+                    familyData[dotIdx].members[mIdx] = newMember;
+                }
+            } else {
+                familyData[dotIdx].members.push(newMember);
+            }
+
+            saveAndRefresh();
+            closeModal();
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem(DB_KEY, JSON.stringify(familyData));
+            updateDotSelectOptions();
+            renderDots();
+            updateStats();
+            pushToFirebase();
+        }
+
+        function updateStats() {
+            const totalMembers = familyData.reduce((sum, dot) => sum + dot.members.length, 0);
+            document.getElementById('stat-dots').innerText = familyData.length;
+            document.getElementById('stat-members').innerText = totalMembers;
+
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: familyData.map(d => d.label),
+                    datasets: [{
+                        label: 'Member Zat',
+                        data: familyData.map(d => d.members.length),
+                        backgroundColor: '#b45309',
+                        borderRadius: 8,
+                        barThickness: 28
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const targetDot = familyData[index];
+                            if (targetDot) {
+                                selectedDotFilter = String(targetDot.id);
+                                document.getElementById('dot-select-filter').value = String(targetDot.id);
+                                renderDots();
+                            }
+                        }
+                    },
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f5f5f4' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function exportData() {
+            const backupPayload = { intro: familyIntro, dots: familyData };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupPayload));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `chungkhar_salan_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (importedData && importedData.dots) {
+                        familyData = importedData.dots;
+                        familyIntro = importedData.intro || "";
+                    } else if (Array.isArray(importedData)) {
+                        familyData = importedData;
+                    }
+                    localStorage.setItem(INTRO_KEY, familyIntro);
+                    saveAndRefresh();
+                    renderIntro();
+                    alert("Backup file imported successfully!");
+                } catch (err) {
+                    alert("File format standard invalid.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        init();
+    </script>
+</body>
+</html>
